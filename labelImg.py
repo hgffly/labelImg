@@ -42,6 +42,8 @@ from libs.pascal_voc_io import PascalVocReader
 from libs.pascal_voc_io import XML_EXT
 from libs.yolo_io import YoloReader
 from libs.yolo_io import TXT_EXT
+from libs.json_io import JsonReader
+from libs.json_io import JSON_EXT
 from libs.ustr import ustr
 from libs.version import __version__
 
@@ -101,7 +103,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Save as Pascal voc xml
         self.defaultSaveDir = defaultSaveDir
-        self.usingPascalVocFormat = True
+        self.usingJsonFormat = True
+        self.usingPascalVocFormat = False
         self.usingYoloFormat = False
 
         # For loading all image under a directory
@@ -239,8 +242,8 @@ class MainWindow(QMainWindow, WindowMixin):
         save = action('&Save', self.saveFile,
                       'Ctrl+S', 'save', u'Save labels to file', enabled=False)
 
-        save_format = action('&PascalVOC', self.change_format,
-                      'Ctrl+', 'format_voc', u'Change save format', enabled=True)
+        # save_format = action('&PascalVOC', self.change_format, 'Ctrl+', 'format_voc', u'Change save format', enabled=True)
+        save_format = action('&JSON', self.change_format, 'Ctrl+', 'json', u'Change save format', enabled=True)
 
         saveAs = action('&Save As', self.saveFileAs,
                         'Ctrl+Shift+S', 'save-as', u'Save labels to a different file', enabled=False)
@@ -495,6 +498,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.actions.save_format.setIcon(newIcon("format_voc"))
             self.usingPascalVocFormat = True
             self.usingYoloFormat = False
+            self.usingJsonFormat = False
             LabelFile.suffix = XML_EXT
 
         elif save_format == FORMAT_YOLO:
@@ -502,11 +506,21 @@ class MainWindow(QMainWindow, WindowMixin):
             self.actions.save_format.setIcon(newIcon("format_yolo"))
             self.usingPascalVocFormat = False
             self.usingYoloFormat = True
+            self.usingJsonFormat = False
             LabelFile.suffix = TXT_EXT
 
+        elif save_format == FORMAT_JSON:
+            self.actions.save_format.setText(FORMAT_JSON)
+            self.actions.save_format.setIcon(newIcon("format_json"))
+            self.usingPascalVocFormat = False
+            self.usingYoloFormat = False
+            self.usingJsonFormat = True
+            LabelFile.suffix = JSON_EXT
+
     def change_format(self):
-        if self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
-        elif self.usingYoloFormat: self.set_format(FORMAT_PASCALVOC)
+        if self.usingJsonFormat: self.set_format(FORMAT_PASCALVOC)
+        elif self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
+        elif self.usingYoloFormat: self.set_format(FORMAT_JSON)
 
     def noShapes(self):
         return not self.itemsToShapes
@@ -785,7 +799,13 @@ class MainWindow(QMainWindow, WindowMixin):
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
         # Can add differrent annotation formats here
         try:
-            if self.usingPascalVocFormat is True:
+            print(annotationFilePath, " annotationFilePath")
+            if self.usingJsonFormat is True:
+                if ustr(annotationFilePath[-5:]) != ".json":
+                    annotationFilePath += JSON_EXT
+                print ('Img: ' + self.filePath + ' -> Its json: ' + annotationFilePath)
+                self.labelFile.saveJsonFormat(annotationFilePath, shapes, self.filePath)
+            elif self.usingPascalVocFormat is True:
                 if ustr(annotationFilePath[-4:]) != ".xml":
                     annotationFilePath += XML_EXT
                 print ('Img: ' + self.filePath + ' -> Its xml: ' + annotationFilePath)
