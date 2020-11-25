@@ -215,8 +215,8 @@ class MainWindow(QMainWindow, WindowMixin):
         quit = action('&Quit', self.close,
                       'Ctrl+Q', 'quit', u'Quit application')
 
-        open = action('&Open', self.openFile,
-                      'Ctrl+O', 'open', u'Open image or label file')
+        open = action('&Open', self.openListFile,
+                      'Ctrl+O', 'open', u'Open file with image list')
 
         opendir = action('&Open Dir', self.openDirDialog,
                          'Ctrl+u', 'open', u'Open Dir')
@@ -1169,6 +1169,37 @@ class MainWindow(QMainWindow, WindowMixin):
                 if isinstance(filename, (tuple, list)):
                     filename = filename[0]
             self.loadPascalXMLByFilename(filename)
+
+    def openListFile(self, _value=False):
+        if not self.mayContinue():
+            return
+        path = os.path.dirname(ustr(self.filePath)) if self.filePath else '.'
+        #formats = ['*.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats()]
+        filters = f"Image & Label files (*.txt)"
+        filename = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
+        if filename:
+            if isinstance(filename, (tuple, list)):
+                filename = filename[0]
+            self.importListImages(filename)
+
+    def importListImages(self, list_path):
+        if not self.mayContinue() or not list_path:
+            return
+
+        # self.lastOpenDir = dirpath
+        # self.dirname = dirpath
+        self.filePath = None
+        self.fileListWidget.clear()
+        #self.mImgList = self.scanAllImages(dirpath)
+        self.mImgList = []
+        with open(list_path, "r") as f:
+            for line in f:
+                line = line.split()
+                self.mImgList += [line[0]]
+        self.openNextImg()
+        for imgPath in self.mImgList:
+            item = QListWidgetItem(imgPath)
+            self.fileListWidget.addItem(item)
 
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
