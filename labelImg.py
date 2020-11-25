@@ -93,6 +93,7 @@ class MainWindow(QMainWindow, WindowMixin):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
+        defaultFilename = "/Users/wilsonho/wilson_program/images_gt_jpg"
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -227,11 +228,11 @@ class MainWindow(QMainWindow, WindowMixin):
         openAnnotation = action('&Open Annotation', self.openAnnotationDialog,
                                 'Ctrl+Shift+O', 'open', u'Open Annotation')
 
-        openNextImg = action('&Next Image', self.openNextImg,
-                             'd', 'next', u'Open Next')
-
         openPrevImg = action('&Prev Image', self.openPrevImg,
                              'a', 'prev', u'Open Prev')
+
+        openNextImg = action('&Next Image', self.openNextImg,
+                             'd', 'next', u'Open Next')
 
         verify = action('&Verify Image', self.verifyImg,
                         'space', 'verify', u'Verify Image')
@@ -469,12 +470,6 @@ class MainWindow(QMainWindow, WindowMixin):
         # Populate the File menu dynamically.
         self.updateFileMenu()
 
-        # Since loading the file may take some time, make sure it runs in the background.
-        if self.filePath and os.path.isdir(self.filePath):
-            self.queueEvent(partial(self.importDirImages, self.filePath or ""))
-        elif self.filePath:
-            self.queueEvent(partial(self.loadFile, self.filePath or ""))
-
         # Callbacks:
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
 
@@ -484,9 +479,6 @@ class MainWindow(QMainWindow, WindowMixin):
         self.labelCoordinates = QLabel('')
         self.statusBar().addPermanentWidget(self.labelCoordinates)
 
-        # Open Dir if deafult file
-        if self.filePath and os.path.isdir(self.filePath):
-            self.openDirDialog(dirpath=self.filePath)
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
@@ -1173,8 +1165,8 @@ class MainWindow(QMainWindow, WindowMixin):
     def openListFile(self, _value=False):
         if not self.mayContinue():
             return
-        path = os.path.dirname(ustr(self.filePath)) if self.filePath else '.'
-        #formats = ['*.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats()]
+
+        path = ustr(self.filePath) if os.path.isdir(self.filePath) else '.'
         filters = f"Image & Label files (*.txt)"
         filename = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
         if filename:
@@ -1204,7 +1196,6 @@ class MainWindow(QMainWindow, WindowMixin):
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
             return
-
         defaultOpenDirPath = dirpath if dirpath else '.'
         if self.lastOpenDir and os.path.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
@@ -1219,7 +1210,6 @@ class MainWindow(QMainWindow, WindowMixin):
     def importDirImages(self, dirpath):
         if not self.mayContinue() or not dirpath:
             return
-
 
         self.lastOpenDir = dirpath
         self.dirname = dirpath
