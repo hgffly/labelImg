@@ -1037,6 +1037,7 @@ class MainWindow(QMainWindow, WindowMixin):
                     os.path.splitext(self.filePath)[0])
                 xmlPath = os.path.join(self.defaultSaveDir, basename + XML_EXT)
                 txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
+                jsonPath = os.path.join(self.defaultSaveDir, basename + JSON_EXT)
 
                 """Annotation file priority:
                 PascalXML > YOLO
@@ -1045,13 +1046,18 @@ class MainWindow(QMainWindow, WindowMixin):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
                     self.loadYOLOTXTByFilename(txtPath)
+                elif os.path.isfile(jsonPath):
+                    self.loadJsonByFilename(jsonPath)
             else:
                 xmlPath = os.path.splitext(filePath)[0] + XML_EXT
                 txtPath = os.path.splitext(filePath)[0] + TXT_EXT
+                jsonPath = os.path.splitext(filePath)[0] + JSON_EXT
                 if os.path.isfile(xmlPath):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
                     self.loadYOLOTXTByFilename(txtPath)
+                elif os.path.isfile(jsonPath):
+                    self.loadJsonByFilename(jsonPath)
 
             self.setWindowTitle(__appname__ + ' ' + filePath)
 
@@ -1470,6 +1476,14 @@ class MainWindow(QMainWindow, WindowMixin):
         self.loadLabels(shapes)
         self.canvas.verified = tYoloParseReader.verified
 
+    def loadJsonByFilename(self, jsonPath):
+        if self.filePath is None or os.path.isfile(jsonPath) is False:
+            return
+        self.set_format(FORMAT_JSON)
+        json_reader = JsonReader(jsonPath)
+        shapes = json_reader.getShapes()
+        self.loadLabels(shapes)
+
     def togglePaintLabelsOption(self):
         paintLabelsOptionChecked = self.paintLabelsOption.isChecked()
         for shape in self.canvas.shapes:
@@ -1503,7 +1517,7 @@ def get_main_app(argv=[]):
     win = MainWindow(argv[1] if len(argv) >= 2 else None,
                      argv[2] if len(argv) >= 3 else os.path.join(
                          os.path.dirname(sys.argv[0]),
-                         'data', 'predefined_classes.txt'),
+                         'data', 'graph_tag.txt'),
                      argv[3] if len(argv) >= 4 else None)
     win.show()
     return app, win

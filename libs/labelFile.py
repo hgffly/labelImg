@@ -85,8 +85,6 @@ class LabelFile(object):
         return
 
     def saveJsonFormat(self, gt_path, shapes, imagePath):
-        # imgFolderPath = os.path.dirname(imagePath)
-        # imgFolderName = os.path.split(imgFolderPath)[-1]
         imgFileName = os.path.basename(imagePath)
 
         # Read from file path because self.imageData might be empty if saving to
@@ -94,9 +92,7 @@ class LabelFile(object):
         image = QImage()
         image.load(imagePath)
         imageShape = [image.height(), image.width(), 1 if image.isGrayscale() else 3]
-        #writer = JsonWriter(imgFolderName, imgFileName, imageShape, localImgPath=imagePath)
         writer = JsonWriter(imgFileName, imageShape)
-        #writer.verified = self.verified
 
         for shape in shapes:
             points = shape['points']
@@ -106,7 +102,6 @@ class LabelFile(object):
             bndbox = LabelFile.convertPoints2BndBox(points)
             writer.addBndBox(bndbox[0], bndbox[1], bndbox[2], bndbox[3], label, difficult)
 
-        #writer.save(targetFile=filename, classList=classList)
         writer.save(gt_path)
 
     def toggleVerify(self):

@@ -1,0 +1,15 @@
+accessory
+baby
+bags
+hair_accessory
+hats
+one_piece
+outers
+pants
+shoes
+skirts
+suits
+swimsuits
+tops
+underwear
+wallet
