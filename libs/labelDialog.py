@@ -6,7 +6,7 @@ except ImportError:
     from PyQt4.QtGui import *
     from PyQt4.QtCore import *
 
-from libs.lib import newIcon, labelValidator
+from libs.utils import newIcon, labelValidator
 
 BB = QDialogButtonBox
 
@@ -67,7 +67,16 @@ class LabelDialog(QDialog):
         self.edit.setSelection(0, len(text))
         self.edit.setFocus(Qt.PopupFocusReason)
         if move:
-            self.move(QCursor.pos())
+            cursor_pos = QCursor.pos()
+            parent_bottomRight = self.parentWidget().geometry()
+            max_x = parent_bottomRight.x() + parent_bottomRight.width() - self.sizeHint().width()
+            max_y = parent_bottomRight.y() + parent_bottomRight.height() - self.sizeHint().height()
+            max_global = self.parentWidget().mapToGlobal(QPoint(max_x, max_y))
+            if cursor_pos.x() > max_global.x():
+                cursor_pos.setX(max_global.x())
+            if cursor_pos.y() > max_global.y():
+                cursor_pos.setY(max_global.y())
+            self.move(cursor_pos)
         return self.edit.text() if self.exec_() else None
 
     def listItemClick(self, tQListWidgetItem):
@@ -77,7 +86,7 @@ class LabelDialog(QDialog):
             # PyQt5: AttributeError: 'str' object has no attribute 'trimmed'
             text = tQListWidgetItem.text().strip()
         self.edit.setText(text)
-        
+
     def listItemDoubleClick(self, tQListWidgetItem):
         self.listItemClick(tQListWidgetItem)
         self.validate()

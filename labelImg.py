@@ -7,7 +7,7 @@ import platform
 import re
 import sys
 import subprocess
-
+import json
 from functools import partial
 from collections import defaultdict
 
@@ -782,7 +782,15 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.canvas.loadShapes(s)
 
+    def change_filelist_background_color(self, annotationFilePath):
+        if self.labelList.count()>0:
+            self.fileListWidget.item(self.mImgdict[annotationFilePath.split("/")[-1]+".json"]).setBackground(QColor("green"))
+        else:
+            self.fileListWidget.item(self.mImgdict[annotationFilePath.split("/")[-1]+".json"]).setBackground(QColor("white"))
+            os.remove(os.path.join(self.settings.get(SETTING_SAVE_DIR), annotationFilePath.split("/")[-1]+".json"))
+
     def saveLabels(self, annotationFilePath):
+        self.change_filelist_background_color(annotationFilePath)
         annotationFilePath = ustr(annotationFilePath)
         if self.labelFile is None:
             self.labelFile = LabelFile()
@@ -1199,6 +1207,16 @@ class MainWindow(QMainWindow, WindowMixin):
                 filename = filename[0]
             self.importListImages(filename)
 
+    def remove_no_bbox_json(self, ground_truth_folder, ground_truth_files):
+        remove_files = []
+        for json_path in ground_truth_files:
+            if json_path[-4:] == "json":
+                tmp = json.load(open(os.path.join(ground_truth_folder, json_path)))
+                if tmp.get("objs") == []:
+                    remove_files.append(json_path)
+                    os.remove(os.path.join(ground_truth_folder, json_path))
+        return list(set(ground_truth_files)-set(remove_files))
+
     def importListImages(self, list_path):
         if not self.mayContinue() or not list_path:
             return
@@ -1213,9 +1231,19 @@ class MainWindow(QMainWindow, WindowMixin):
             for line in f:
                 line = line.split()
                 self.mImgList += [line[0]]
+
+        # 列出指定路徑底下所有檔案(包含資料夾)
+        ground_truth_folder = self.settings.get(SETTING_SAVE_DIR)
+        ground_truth_files = os.listdir(ground_truth_folder)
+        #將沒有標記的json移除
+        ground_truth_files = self.remove_no_bbox_json(ground_truth_folder, ground_truth_files)
+        self.mImgdict = {}
         self.openNextImg()
-        for imgPath in self.mImgList:
+        for index, imgPath in enumerate(self.mImgList):
             item = QListWidgetItem(imgPath)
+            self.mImgdict[imgPath.split("/")[-1].replace("jpg","json")] = index
+            if imgPath.split("/")[-1].replace("jpg","json") in ground_truth_files:
+                item.setBackground(QColor("green"))
             self.fileListWidget.addItem(item)
 
     def openDirDialog(self, _value=False, dirpath=None):

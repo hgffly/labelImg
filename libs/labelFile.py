@@ -11,8 +11,17 @@ from libs.pascal_voc_io import PascalVocWriter
 from libs.yolo_io import YOLOWriter
 from libs.json_io import JsonWriter
 from libs.pascal_voc_io import XML_EXT
+from libs.create_ml_io import CreateMLWriter
+from libs.create_ml_io import JSON_EXT
+from enum import Enum
 import os.path
 import sys
+
+
+class LabelFileFormat(Enum):
+    PASCAL_VOC= 1
+    YOLO = 2
+    CREATE_ML = 3
 
 
 class LabelFileError(Exception):
@@ -30,6 +39,23 @@ class LabelFile(object):
         self.imageData = None
         self.verified = False
 
+    def saveCreateMLFormat(self, filename, shapes, imagePath, imageData, classList, lineColor=None, fillColor=None, databaseSrc=None):
+        imgFolderPath = os.path.dirname(imagePath)
+        imgFolderName = os.path.split(imgFolderPath)[-1]
+        imgFileName = os.path.basename(imagePath)
+        outputFilePath = "/".join(filename.split("/")[:-1])
+        outputFile = outputFilePath + "/" + imgFolderName + JSON_EXT
+
+        image = QImage()
+        image.load(imagePath)
+        imageShape = [image.height(), image.width(),
+                      1 if image.isGrayscale() else 3]
+        writer = CreateMLWriter(imgFolderName, imgFileName,
+                                imageShape, shapes, outputFile, localimgpath=imagePath)
+        writer.verified = self.verified
+        writer.write()
+
+
     def savePascalVocFormat(self, filename, shapes, imagePath, imageData,
                             lineColor=None, fillColor=None, databaseSrc=None):
         imgFolderPath = os.path.dirname(imagePath)
@@ -38,8 +64,11 @@ class LabelFile(object):
         #imgFileNameWithoutExt = os.path.splitext(imgFileName)[0]
         # Read from file path because self.imageData might be empty if saving to
         # Pascal format
-        image = QImage()
-        image.load(imagePath)
+        if isinstance(imageData, QImage):
+            image = imageData
+        else:
+            image = QImage()
+            image.load(imagePath)
         imageShape = [image.height(), image.width(),
                       1 if image.isGrayscale() else 3]
         writer = PascalVocWriter(imgFolderName, imgFileName,
@@ -65,8 +94,11 @@ class LabelFile(object):
         #imgFileNameWithoutExt = os.path.splitext(imgFileName)[0]
         # Read from file path because self.imageData might be empty if saving to
         # Pascal format
-        image = QImage()
-        image.load(imagePath)
+        if isinstance(imageData, QImage):
+            image = imageData
+        else:
+            image = QImage()
+            image.load(imagePath)
         imageShape = [image.height(), image.width(),
                       1 if image.isGrayscale() else 3]
         writer = YOLOWriter(imgFolderName, imgFileName,
