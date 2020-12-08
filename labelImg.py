@@ -44,8 +44,8 @@ from libs.pascal_voc_io import PascalVocReader
 from libs.pascal_voc_io import XML_EXT
 from libs.yolo_io import YoloReader
 from libs.yolo_io import TXT_EXT
-from libs.create_ml_io import CreateMLReader
-from libs.create_ml_io import JSON_EXT
+from libs.json_io import JsonReader
+from libs.json_io import JSON_EXT
 from libs.ustr import ustr
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
 
@@ -78,6 +78,7 @@ class MainWindow(QMainWindow, WindowMixin):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
+        defaultFilename = "/Users/wilsonho/wilson_program/images_gt_jpg"
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -89,7 +90,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Save as Pascal voc xml
         self.defaultSaveDir = defaultSaveDir
-        self.labelFileFormat = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
+        self.usingJsonFormat = True
+        self.usingPascalVocFormat = False
+        self.usingYoloFormat = False
 
         # For loading all image under a directory
         self.mImgList = []
@@ -213,8 +216,8 @@ class MainWindow(QMainWindow, WindowMixin):
         opendir = action(getStr('openDir'), self.openDirDialog,
                          'Ctrl+u', 'open', getStr('openDir'))
 
-        copyPrevBounding = action(getStr('copyPrevBounding'), self.copyPreviousBoundingBoxes,
-                         'Ctrl+v', 'paste', getStr('copyPrevBounding'))
+        open = action('&Open', self.openListFile,
+                      'Ctrl+O', 'open', u'Open file with image list')
 
         changeSavedir = action(getStr('changeSaveDir'), self.changeSavedirDialog,
                                'Ctrl+r', 'open', getStr('changeSavedAnnotationDir'))
@@ -225,14 +228,13 @@ class MainWindow(QMainWindow, WindowMixin):
         openNextImg = action(getStr('nextImg'), self.openNextImg,
                              'd', 'next', getStr('nextImgDetail'))
 
-        openPrevImg = action(getStr('prevImg'), self.openPrevImg,
-                             'a', 'prev', getStr('prevImgDetail'))
+        openPrevImg = action('&Prev Image', self.openPrevImg,
+                             'a', 'prev', u'Open Prev')
 
-        verify = action(getStr('verifyImg'), self.verifyImg,
-                        'space', 'verify', getStr('verifyImgDetail'))
+        openNextImg = action('&Next Image', self.openNextImg,
+                             'd', 'next', u'Open Next')
 
-        save = action(getStr('save'), self.saveFile,
-                      'Ctrl+S', 'save', getStr('saveDetail'), enabled=False)
+        # verify = action('&Verify Image', self.verifyImg, 'space', 'verify', u'Verify Image')
 
         def getFormatMeta(format):
             """
@@ -245,10 +247,8 @@ class MainWindow(QMainWindow, WindowMixin):
             elif format == LabelFileFormat.CREATE_ML:
                 return ('&CreateML', 'format_createml')
 
-        save_format = action(getFormatMeta(self.labelFileFormat)[0],
-                             self.change_format, 'Ctrl+',
-                             getFormatMeta(self.labelFileFormat)[1],
-                             getStr('changeSaveFormat'), enabled=True)
+        # save_format = action('&PascalVOC', self.change_format, 'Ctrl+', 'format_voc', u'Change save format', enabled=True)
+        save_format = action('&JSON', self.change_format, 'Ctrl+', 'json', u'Change save format', enabled=True)
 
         saveAs = action(getStr('saveAs'), self.saveFileAs,
                         'Ctrl+Shift+S', 'save-as', getStr('saveAsDetail'), enabled=False)
@@ -417,11 +417,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, verify, save, save_format, None, create, copy, delete, None,
+            open, opendir, changeSavedir, openPrevImg, openNextImg, save, save_format, None, create, copy, delete, None,
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, save, save_format, None,
+            open, opendir, changeSavedir, openPrevImg, openNextImg, save, save_format, None,
             createMode, editMode, None,
             hideAll, showAll)
 
@@ -486,12 +486,6 @@ class MainWindow(QMainWindow, WindowMixin):
         # Populate the File menu dynamically.
         self.updateFileMenu()
 
-        # Since loading the file may take some time, make sure it runs in the background.
-        if self.filePath and os.path.isdir(self.filePath):
-            self.queueEvent(partial(self.importDirImages, self.filePath or ""))
-        elif self.filePath:
-            self.queueEvent(partial(self.loadFile, self.filePath or ""))
-
         # Callbacks:
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
 
@@ -501,9 +495,6 @@ class MainWindow(QMainWindow, WindowMixin):
         self.labelCoordinates = QLabel('')
         self.statusBar().addPermanentWidget(self.labelCoordinates)
 
-        # Open Dir if deafult file
-        if self.filePath and os.path.isdir(self.filePath):
-            self.openDirDialog(dirpath=self.filePath, silent=True)
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
@@ -519,31 +510,31 @@ class MainWindow(QMainWindow, WindowMixin):
         if save_format == FORMAT_PASCALVOC:
             self.actions.save_format.setText(FORMAT_PASCALVOC)
             self.actions.save_format.setIcon(newIcon("format_voc"))
-            self.labelFileFormat = LabelFileFormat.PASCAL_VOC
+            self.usingPascalVocFormat = True
+            self.usingYoloFormat = False
+            self.usingJsonFormat = False
             LabelFile.suffix = XML_EXT
 
         elif save_format == FORMAT_YOLO:
             self.actions.save_format.setText(FORMAT_YOLO)
             self.actions.save_format.setIcon(newIcon("format_yolo"))
-            self.labelFileFormat = LabelFileFormat.YOLO
+            self.usingPascalVocFormat = False
+            self.usingYoloFormat = True
+            self.usingJsonFormat = False
             LabelFile.suffix = TXT_EXT
 
-        elif save_format == FORMAT_CREATEML:
-            self.actions.save_format.setText(FORMAT_CREATEML)
-            self.actions.save_format.setIcon(newIcon("format_createml"))
-            self.labelFileFormat = LabelFileFormat.CREATE_ML
+        elif save_format == FORMAT_JSON:
+            self.actions.save_format.setText(FORMAT_JSON)
+            self.actions.save_format.setIcon(newIcon("format_json"))
+            self.usingPascalVocFormat = False
+            self.usingYoloFormat = False
+            self.usingJsonFormat = True
             LabelFile.suffix = JSON_EXT
 
     def change_format(self):
-        if self.labelFileFormat == LabelFileFormat.PASCAL_VOC:
-            self.set_format(FORMAT_YOLO)
-        elif self.labelFileFormat == LabelFileFormat.YOLO:
-            self.set_format(FORMAT_CREATEML)
-        elif self.labelFileFormat == LabelFileFormat.CREATE_ML:
-            self.set_format(FORMAT_PASCALVOC)
-        else:
-            raise ValueError('Unknown label file format.')
-        self.setDirty()
+        if self.usingJsonFormat: self.set_format(FORMAT_PASCALVOC)
+        elif self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
+        elif self.usingYoloFormat: self.set_format(FORMAT_JSON)
 
     def noShapes(self):
         return not self.itemsToShapes
@@ -846,8 +837,14 @@ class MainWindow(QMainWindow, WindowMixin):
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
         # Can add differrent annotation formats here
         try:
-            if self.labelFileFormat == LabelFileFormat.PASCAL_VOC:
-                if annotationFilePath[-4:].lower() != ".xml":
+            print(annotationFilePath, " annotationFilePath")
+            if self.usingJsonFormat is True:
+                if ustr(annotationFilePath[-5:]) != ".json":
+                    annotationFilePath += JSON_EXT
+                print ('Img: ' + self.filePath + ' -> Its json: ' + annotationFilePath)
+                self.labelFile.saveJsonFormat(annotationFilePath, shapes, self.filePath)
+            elif self.usingPascalVocFormat is True:
+                if ustr(annotationFilePath[-4:]) != ".xml":
                     annotationFilePath += XML_EXT
                 self.labelFile.savePascalVocFormat(annotationFilePath, shapes, self.filePath, self.imageData,
                                                    self.lineColor.getRgb(), self.fillColor.getRgb())
@@ -1093,7 +1090,35 @@ class MainWindow(QMainWindow, WindowMixin):
             self.paintCanvas()
             self.addRecentFile(self.filePath)
             self.toggleActions(True)
-            self.showBoundingBoxFromAnnotationFile(filePath)
+
+            # Label xml file and show bound box according to its filename
+            # if self.usingPascalVocFormat is True:
+            if self.defaultSaveDir is not None:
+                basename = os.path.basename(
+                    os.path.splitext(self.filePath)[0])
+                xmlPath = os.path.join(self.defaultSaveDir, basename + XML_EXT)
+                txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
+                jsonPath = os.path.join(self.defaultSaveDir, basename + JSON_EXT)
+
+                """Annotation file priority:
+                PascalXML > YOLO
+                """
+                if os.path.isfile(xmlPath):
+                    self.loadPascalXMLByFilename(xmlPath)
+                elif os.path.isfile(txtPath):
+                    self.loadYOLOTXTByFilename(txtPath)
+                elif os.path.isfile(jsonPath):
+                    self.loadJsonByFilename(jsonPath)
+            else:
+                xmlPath = os.path.splitext(filePath)[0] + XML_EXT
+                txtPath = os.path.splitext(filePath)[0] + TXT_EXT
+                jsonPath = os.path.splitext(filePath)[0] + JSON_EXT
+                if os.path.isfile(xmlPath):
+                    self.loadPascalXMLByFilename(xmlPath)
+                elif os.path.isfile(txtPath):
+                    self.loadYOLOTXTByFilename(txtPath)
+                elif os.path.isfile(jsonPath):
+                    self.loadJsonByFilename(jsonPath)
 
             self.setWindowTitle(__appname__ + ' ' + filePath)
 
@@ -1249,10 +1274,40 @@ class MainWindow(QMainWindow, WindowMixin):
                     filename = filename[0]
             self.loadPascalXMLByFilename(filename)
 
-    def openDirDialog(self, _value=False, dirpath=None, silent=False):
+    def openListFile(self, _value=False):
         if not self.mayContinue():
             return
 
+        path = ustr(self.filePath) if os.path.isdir(self.filePath) else '.'
+        filters = f"Image & Label files (*.txt)"
+        filename = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
+        if filename:
+            if isinstance(filename, (tuple, list)):
+                filename = filename[0]
+            self.importListImages(filename)
+
+    def importListImages(self, list_path):
+        if not self.mayContinue() or not list_path:
+            return
+
+        # self.lastOpenDir = dirpath
+        # self.dirname = dirpath
+        self.filePath = None
+        self.fileListWidget.clear()
+        #self.mImgList = self.scanAllImages(dirpath)
+        self.mImgList = []
+        with open(list_path, "r") as f:
+            for line in f:
+                line = line.split()
+                self.mImgList += [line[0]]
+        self.openNextImg()
+        for imgPath in self.mImgList:
+            item = QListWidgetItem(imgPath)
+            self.fileListWidget.addItem(item)
+
+    def openDirDialog(self, _value=False, dirpath=None):
+        if not self.mayContinue():
+            return
         defaultOpenDirPath = dirpath if dirpath else '.'
         if self.lastOpenDir and os.path.exists(self.lastOpenDir):
             defaultOpenDirPath = self.lastOpenDir
@@ -1532,25 +1587,13 @@ class MainWindow(QMainWindow, WindowMixin):
         self.loadLabels(shapes)
         self.canvas.verified = tYoloParseReader.verified
 
-    def loadCreateMLJSONByFilename(self, jsonPath, filePath):
-        if self.filePath is None:
+    def loadJsonByFilename(self, jsonPath):
+        if self.filePath is None or os.path.isfile(jsonPath) is False:
             return
-        if os.path.isfile(jsonPath) is False:
-            return
-
-        self.set_format(FORMAT_CREATEML)
-
-        crmlParseReader = CreateMLReader(jsonPath, filePath)
-        shapes = crmlParseReader.get_shapes()
+        self.set_format(FORMAT_JSON)
+        json_reader = JsonReader(jsonPath)
+        shapes = json_reader.getShapes()
         self.loadLabels(shapes)
-        self.canvas.verified = crmlParseReader.verified
-
-    def copyPreviousBoundingBoxes(self):
-        currIndex = self.mImgList.index(self.filePath)
-        if currIndex - 1 >= 0:
-            prevFilePath = self.mImgList[currIndex - 1]
-            self.showBoundingBoxFromAnnotationFile(prevFilePath)
-            self.saveFile()
 
     def togglePaintLabelsOption(self):
         for shape in self.canvas.shapes:
@@ -1589,9 +1632,11 @@ def get_main_app(argv=[]):
     argparser.add_argument("save_dir", nargs="?")
     args = argparser.parse_args(argv[1:])
     # Usage : labelImg.py image predefClassFile saveDir
-    win = MainWindow(args.image_dir,
-                     args.predefined_classes_file,
-                     args.save_dir)
+    win = MainWindow(argv[1] if len(argv) >= 2 else None,
+                     argv[2] if len(argv) >= 3 else os.path.join(
+                         os.path.dirname(sys.argv[0]),
+                         'data', 'graph_tag.txt'),
+                     argv[3] if len(argv) >= 4 else None)
     win.show()
     return app, win
 
